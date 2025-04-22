@@ -1,10 +1,11 @@
-version: "3.9"
-
 services:
   # Expose port 5678 of n8n directly on the host
   n8n:
     ports: ["5678:5678"]
+    environment:
+      DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED: "true"
   # If you prefer to see detailed logs on the desktop
   n8n-worker:
     environment:
-      - LOG_LEVEL=debug
+      LOG_LEVEL: debug
+      DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED: "true"

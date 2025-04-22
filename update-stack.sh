@@ -31,7 +31,7 @@ MODE="${1:-}"
 WORKERS="${2:-}"
 
 if [[ -z "$MODE" ]]; then
-  echo "Choose deploy mode:"
+  echo "Choose deploy mode: [Only numbers]"
   select MODE in "${MODES[@]}"; do
     [[ -n "$MODE" ]] && break
     echo "Invalid option."
@@ -44,7 +44,7 @@ if [[ ! " ${MODES[*]} " =~ " $MODE " ]]; then
 fi
 
 if [[ -z "$WORKERS" ]]; then
-  read -rp "Number of workers? [4]: " WORKERS
+  read -rp "Number of workers? [Default 4]: " WORKERS
   WORKERS="${WORKERS:-4}"
 fi
 if ! [[ "$WORKERS" =~ ^[0-9]+$ ]]; then
@@ -67,20 +67,16 @@ case "$MODE" in
 esac
 
 #######################################
-# 2) Ensure secrets exist
+# 2.5) Ensure external network exists
 #######################################
-SECRET_DIR="secrets"
-mkdir -p "$SECRET_DIR"
-
-gen_hex() { openssl rand -hex 32; }
-gen_b64() { openssl rand -base64 32; }
-
-[[ -s "$SECRET_DIR/n8n_encryption_key.txt" ]] || gen_hex > "$SECRET_DIR/n8n_encryption_key.txt"
-[[ -s "$SECRET_DIR/redis_password.txt"      ]] || gen_b64 > "$SECRET_DIR/redis_password.txt"
-if [[ -n "$PROFILE_DB" ]]; then
-  [[ -s "$SECRET_DIR/postgres_password.txt" ]] || gen_b64 > "$SECRET_DIR/postgres_password.txt"
+if docker compose config | grep -q 'external: true'; then
+  if ! docker network inspect proxy >/dev/null 2>&1; then
+    echo ">> Creating external network 'proxy'..."
+    docker network create proxy
+  else
+    echo ">> External network 'proxy' already exists."
+  fi
 fi
-chmod 600 "$SECRET_DIR"/*.txt
 
 #######################################
 # 3) Deploy stack

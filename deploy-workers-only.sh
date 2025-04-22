@@ -14,9 +14,9 @@
 #
 # Prerequisites on this server
 # ----------------------------
-#   • .env with Redis / Postgres variables pointing to the primary stack
-#   • secrets/n8n_encryption_key.txt (identical to primary)
-#   • secrets/redis_password.txt     (identical to primary)
+#   • .env com variáveis Redis / Postgres apontando para o servidor principal
+#   • Dockerfile local presente na mesma pasta
+#   • N8N_ENCRYPTION_KEY igual ao do servidor principal
 
 set -euo pipefail
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,7 +26,6 @@ cd "$BASE_DIR"
 # Config section
 #########################################
 DEFAULT_WORKERS=4
-IMAGE_TAG=matheus/n8n-custom:latest
 
 #########################################
 # 1) Worker count
@@ -43,52 +42,59 @@ fi
 echo ">> Workers to deploy: $WORKERS"
 
 #########################################
-# 2) Validate secrets
+# 2) Validate .env variables
 #########################################
-SECRET_DIR="secrets"
-for f in n8n_encryption_key.txt redis_password.txt; do
-  [[ -s $SECRET_DIR/$f ]] || { echo "Error: missing '$SECRET_DIR/$f'"; exit 1; }
+REQUIRED_VARS=(
+  N8N_ENCRYPTION_KEY
+  POSTGRES_HOST
+  POSTGRES_PORT
+  POSTGRES_DB
+  POSTGRES_USER
+  POSTGRES_PASSWORD
+  QUEUE_BULL_REDIS_HOST
+  QUEUE_BULL_REDIS_PORT
+  REDIS_PASSWORD
+)
+
+for var in "${REQUIRED_VARS[@]}"; do
+  if [[ -z "${!var:-}" ]]; then
+    echo "Error: missing environment variable '$var'"
+    exit 1
+  fi
 done
-chmod 600 "$SECRET_DIR"/*.txt
 
 #########################################
 # 3) Generate minimal compose (on the fly)
 #########################################
-cat > docker-compose.worker.yml <<YAML
-version: "3.9"
+cat > docker-compose.worker.yml <<'YAML'
 services:
   n8n-worker:
-    image: ${IMAGE_TAG}
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: n8n worker
     environment:
       EXECUTIONS_MODE: queue
-      QUEUE_BULL_REDIS_HOST: \${QUEUE_BULL_REDIS_HOST}
-      QUEUE_BULL_REDIS_PORT: \${QUEUE_BULL_REDIS_PORT:-6379}
-      QUEUE_BULL_REDIS_PASSWORD_FILE: /run/secrets/redis_password
+      QUEUE_BULL_REDIS_HOST: ${QUEUE_BULL_REDIS_HOST}
+      QUEUE_BULL_REDIS_PORT: ${QUEUE_BULL_REDIS_PORT:-6379}
+      QUEUE_BULL_REDIS_PASSWORD: ${REDIS_PASSWORD}
       DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: \${POSTGRES_HOST}
-      DB_POSTGRESDB_PORT: \${POSTGRES_PORT:-5432}
-      DB_POSTGRESDB_DATABASE: \${POSTGRES_DB}
-      DB_POSTGRESDB_USER: \${POSTGRES_USER}
-      DB_POSTGRESDB_PASSWORD: \${POSTGRES_PASSWORD}
-      N8N_ENCRYPTION_KEY_FILE: /run/secrets/n8n_encryption_key
-    secrets:
-      - redis_password
-      - n8n_encryption_key
+      DB_POSTGRESDB_HOST: ${POSTGRES_HOST}
+      DB_POSTGRESDB_PORT: ${POSTGRES_PORT:-5432}
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS: "true"
     restart: unless-stopped
-
-secrets:
-  redis_password:
-    file: ./secrets/redis_password.txt
-  n8n_encryption_key:
-    file: ./secrets/n8n_encryption_key.txt
 YAML
 
 #########################################
 # 4) Deploy
 #########################################
-echo ">> Pulling worker image..."
-docker compose -f docker-compose.worker.yml pull
+echo ">> Building worker image..."
+docker compose -f docker-compose.worker.yml build
 
 echo ">> Starting ${WORKERS} worker(s)..."
 docker compose -f docker-compose.worker.yml up -d --scale n8n-worker="${WORKERS}"
