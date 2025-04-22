@@ -132,26 +132,28 @@ services:
   # Browserless – headless Chrome                                 #
   #################################################################
   browserless:
+    profiles: [ "browserless" ]
     image: browserless/chrome:latest
     <<: *logging
     environment:
-      TOKEN: ${BROWSERLESS_TOKEN:-demo}
+      TOKEN: ${BROWSERLESS_TOKEN:-development}
       MAX_CONCURRENT_SESSIONS: "5"
+      DEBUG: "browserless:*"
+      CONNECTION_TIMEOUT: "60000"
+      MAX_QUEUE_LENGTH: "20"
+      DEMO_MODE: "false"
+      ENABLE_DEBUGGER: "false"
+      PORT: "3000"
+      WORKSPACE_DELETE_EXPIRED: "true"
+      WORKSPACE_EXPIRE_DAYS: "1"
     networks: [ backend ]
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:3000/" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     restart: unless-stopped
 
   #################################################################
   # n8n Web interface                                             #
   #################################################################
   n8n:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: n8nio/n8n:latest
     <<: *logging
     environment:
       <<: *n8n-env
@@ -170,14 +172,11 @@ services:
   # n8n Worker                                                    #
   #################################################################
   n8n-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: n8nio/n8n:latest
     <<: *logging
     environment:
       <<: *n8n-env
-    # command: "/bin/sh -c 'sleep 5; n8n worker'"
-    command: n8n worker
+    command: worker
     depends_on:
       redis: { condition: service_healthy }
     networks: [ backend ]

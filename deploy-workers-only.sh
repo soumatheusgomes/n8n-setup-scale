@@ -69,10 +69,8 @@ done
 cat > docker-compose.worker.yml <<'YAML'
 services:
   n8n-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: n8n worker
+    image: n8nio/n8n:latest
+    command: worker
     environment:
       EXECUTIONS_MODE: queue
       QUEUE_BULL_REDIS_HOST: ${QUEUE_BULL_REDIS_HOST}
