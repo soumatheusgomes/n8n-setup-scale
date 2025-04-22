@@ -14,9 +14,9 @@
 #
 # Prerequisites on this server
 # ----------------------------
-#   • .env com variáveis Redis / Postgres apontando para o servidor principal
-#   • Dockerfile local presente na mesma pasta
-#   • N8N_ENCRYPTION_KEY igual ao do servidor principal
+#   • .env with Redis / Postgres variables pointing to the main server
+#   • Local Dockerfile present in the same folder
+#   • N8N_ENCRYPTION_KEY identical to the main server
 
 set -euo pipefail
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
