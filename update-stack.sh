@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
+# install.sh  –  Provisiona/atualiza a stack n8n + Traefik
+# -------------------------------------------------------
+# Uso:   ./install.sh <MODE> [WORKERS]
+# MODE  : cloud-remote | cloud-docker | localhost-remote | localhost-docker
+# WORKERS (opcional)  : nº de workers (default 4)
 
 set -euo pipefail
 STACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$STACK_DIR"
 
-MODES=(cloud-remote cloud-local local-remote local-local)
+MODES=(cloud-remote cloud-docker localhost-remote localhost-docker)
 
 MODE="${1:-}"
 WORKERS="${2:-}"
@@ -35,7 +40,29 @@ echo ">> Deploy mode : $MODE"
 echo ">> Worker count: $WORKERS"
 
 #######################################
-# Ask whether to include browserless
+# Ajusta WEBHOOK_URL dinamicamente
+#######################################
+ENV_FILE="$STACK_DIR/.env"
+touch "$ENV_FILE"
+sed -i '/^WEBHOOK_URL=/d' "$ENV_FILE"
+
+# Captura N8N_PROTOCOL e N8N_HOST já definidos (com fallback)
+N8N_PROTOCOL_VAL=$(grep -E '^N8N_PROTOCOL=' "$ENV_FILE" | cut -d= -f2-) || true
+N8N_PROTOCOL_VAL=${N8N_PROTOCOL_VAL:-http}
+
+N8N_HOST_VAL=$(grep -E '^N8N_HOST=' "$ENV_FILE" | cut -d= -f2-) || true
+N8N_HOST_VAL=${N8N_HOST_VAL:-localhost}
+
+if [[ "$MODE" == L* ]]; then
+  echo "WEBHOOK_URL=${N8N_PROTOCOL_VAL}://localhost:5678" >> "$ENV_FILE"
+  echo ">> WEBHOOK_URL definido (local): ${N8N_PROTOCOL_VAL}://localhost:5678"
+else
+  echo "WEBHOOK_URL=${N8N_PROTOCOL_VAL}://${N8N_HOST_VAL}" >> "$ENV_FILE"
+  echo ">> WEBHOOK_URL definido (cloud): ${N8N_PROTOCOL_VAL}://${N8N_HOST_VAL}"
+fi
+
+#######################################
+# Pergunta se inclui o Browserless
 #######################################
 INCLUDE_BROWSERLESS="false"
 read -rp "Do you want to include the Browserless container? (y/N): " INCLUDE_BROWSERLESS_ANSWER
@@ -45,14 +72,14 @@ case "$INCLUDE_BROWSERLESS_ANSWER" in
 esac
 
 #######################################
-# Compose profile and override mapping
+# Compose profile e overrides
 #######################################
 PROFILE_TLS=""; PROFILE_DB=""; EXTRA_FILE=""
 case "$MODE" in
   cloud-remote)  PROFILE_TLS="--profile tls" ;;
-  cloud-local)   PROFILE_TLS="--profile tls"; PROFILE_DB="--profile dblocal" ;;
-  local-remote)  EXTRA_FILE="-f docker-compose.local.yml" ;;
-  local-local)   PROFILE_DB="--profile dblocal"; EXTRA_FILE="-f docker-compose.local.yml" ;;
+  cloud-docker)   PROFILE_TLS="--profile tls"; PROFILE_DB="--profile dblocal" ;;
+  localhost-remote)  EXTRA_FILE="-f docker-compose.local.yml" ;;
+  localhost-docker)   PROFILE_DB="--profile dblocal"; EXTRA_FILE="-f docker-compose.local.yml" ;;
 esac
 
 #######################################
@@ -81,7 +108,7 @@ docker image prune -f
 
 echo "✅  Stack is up — $WORKERS worker(s) running."
 
-# Remove browserless manually if not included
+# Remove browserless manual se não incluído
 if [[ "$INCLUDE_BROWSERLESS" != "true" ]]; then
   echo ">> Cleaning up browserless container if exists..."
   docker ps -a --filter "name=browserless" --format "{{.ID}}" | xargs -r docker rm -f
