@@ -16,17 +16,19 @@ volumes:
   traefik_letsencrypt:
   postgres_data:
 
-# Default n8n environment block (overridden per service)
+########################
+# Blocos reutilizáveis #
+########################
 x-n8n-env: &n8n-env
   NODE_ENV: production
   N8N_RUNNERS_ENABLED: "true"
   N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
-  N8N_HOST: ${N8N_HOST}
+  N8N_HOST: ${N8N_HOST:-localhost}
   N8N_PORT: "5678"
   WEBHOOK_URL: ${WEBHOOK_URL:-}
   GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-UTC}
 
-  # Execution queue settings
+  # Execution queue
   EXECUTIONS_MODE: queue
   EXECUTIONS_DATA_SAVE_ON_ERROR: none
   EXECUTIONS_DATA_SAVE_ON_SUCCESS: none
@@ -36,7 +38,7 @@ x-n8n-env: &n8n-env
   QUEUE_BULL_REDIS_PASSWORD: ${REDIS_PASSWORD}
   QUEUE_HEALTH_CHECK_ACTIVE: "true"
 
-  # Postgres connection (container `postgres` if dblocal profile is enabled)
+  # Postgres
   DB_TYPE: postgresdb
   DB_POSTGRESDB_HOST: ${POSTGRES_HOST:-postgres}
   DB_POSTGRESDB_PORT: ${POSTGRES_PORT:-5432}
@@ -45,10 +47,11 @@ x-n8n-env: &n8n-env
   DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-n8n}
   DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED: ${DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED:-false}
 
-  # N8N Configs
+  # N8N configs
   N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
   N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
   OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS: "true"
+
   # SMTP
   N8N_SMTP_HOST: ${SMTP_HOST:-}
   N8N_SMTP_PORT: ${SMTP_PORT:-}
@@ -62,40 +65,38 @@ x-n8n-env: &n8n-env
 ################
 services:
   #################################################################
-  # Traefik – only started when profile `tls` is enabled          #
+  # Traefik – profile `tls`                                       #
   #################################################################
   traefik:
-    image: traefik:${TRAEFIK_VERSION:-v3}                 # v3.x
-    container_name: traefik
+    image: traefik:${TRAEFIK_VERSION:-v3}
     restart: unless-stopped
     networks:
       - traefik
       - backend
     ports:
-      # Entrada pública
-      - "80:80"          # HTTP  → redireciona para HTTPS
-      - "443:443"        # HTTPS
-      # TCP pass-through (TLS encerrado no Traefik)
-      - "6379:6379"      # Redis
-      - "5432:5432"      # PostgreSQL
+      - "80:80"           # HTTP  → redireciona para HTTPS
+      - "443:443"         # HTTPS
+      # (Opcional) expose Redis/Postgres TCP
+      #- "6379:6379"
+      #- "5432:5432"
     environment:
       - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
     command:
-      # Enable Dashboard
+      # API / Dashboard
       - "--api=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      # EntryPoints HTTP/HTTPS
+
+      # EntryPoints
       - "--entrypoints.web.address=:80"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
-      # TCP entry-points
-      - "--entrypoints.redis.address=:6379"
-      - "--entrypoints.rabbitmq.address=:5672"
-      - "--entrypoints.postgres.address=:5432"
+
+      # Ping / health
       - "--ping=true"
-      # ACME (Let's Encrypt) – DNS-01 via Cloudflare
+
+      # ACME / Cloudflare DNS-01
       - "--certificatesresolvers.cf.acme.email=${LETSENCRYPT_EMAIL}"
       - "--certificatesresolvers.cf.acme.storage=/letsencrypt/acme.json"
       - "--certificatesresolvers.cf.acme.dnschallenge.provider=cloudflare"
@@ -110,23 +111,21 @@ services:
       retries: 3
       start_period: 10s
     labels:
-      # (Opcional) Habilite e proteja o dashboard via BasicAuth
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DASHBOARD_DOMAIN}`)"
       - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls=true"
       - "traefik.http.routers.traefik.tls.certresolver=cf"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
       - "traefik.http.routers.traefik.middlewares=traefik-auth"
 
-
   #################################################################
-  # PostgreSQL – local database (profile `dblocal`)               #
+  # PostgreSQL – profile `dblocal`                                #
   #################################################################
   postgres:
     profiles: [ "dblocal" ]
     image: postgres:${POSTGRES_VERSION:-17}
-    container_name: postgres
     restart: unless-stopped
     networks:
       - backend
@@ -147,7 +146,6 @@ services:
   #################################################################
   redis:
     image: redis:${REDIS_VERSION:-7}
-    container_name: redis
     restart: unless-stopped
     networks:
       - backend
@@ -163,11 +161,14 @@ services:
       retries: 5
 
   #################################################################
-  # Browserless – headless Chrome                                 #
+  # Browserless – headless Chrome (profile `browserless`)         #
   #################################################################
   browserless:
     profiles: [ "browserless" ]
     image: browserless/chrome:${BROWSERLESS_VERSION:-latest}
+    restart: unless-stopped
+    networks:
+      - backend
     environment:
       TOKEN: ${BROWSERLESS_TOKEN:-development}
       MAX_CONCURRENT_SESSIONS: "5"
@@ -179,40 +180,42 @@ services:
       PORT: "3000"
       WORKSPACE_DELETE_EXPIRED: "true"
       WORKSPACE_EXPIRE_DAYS: "1"
-    networks:
-      - backend
-    restart: unless-stopped
 
   #################################################################
   # n8n Web interface                                             #
   #################################################################
   n8n:
     image: n8nio/n8n:${N8N_VERSION:-latest}
+    restart: unless-stopped
     environment:
       <<: *n8n-env
-    volumes: [ n8n_data:/home/node/.n8n ]
+    volumes:
+      - n8n_data:/home/node/.n8n
     depends_on:
-      redis: { condition: service_healthy }
+      redis:
+        condition: service_healthy
     networks:
       - backend
       - traefik
-    restart: unless-stopped
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.n8n.rule=Host(${N8N_HOST})
-      - traefik.http.routers.n8n.entrypoints=websecure
-      - "traefik.tcp.routers.n8n.tls.certresolver=cf"
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`${N8N_HOST}`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls=true"
+      - "traefik.http.routers.n8n.tls.certresolver=cf"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
 
   #################################################################
   # n8n Worker                                                    #
   #################################################################
   n8n-worker:
     image: n8nio/n8n:${N8N_VERSION:-latest}
+    restart: unless-stopped
+    command: worker
     environment:
       <<: *n8n-env
-    command: worker
     depends_on:
-      redis: { condition: service_healthy }
+      redis:
+        condition: service_healthy
     networks:
       - backend
-    restart: unless-stopped
