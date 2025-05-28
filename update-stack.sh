@@ -56,18 +56,6 @@ case "$MODE" in
 esac
 
 #######################################
-# Create proxy network if missing
-#######################################
-if docker compose config | grep -q 'external: true'; then
-  if ! docker network inspect proxy >/dev/null 2>&1; then
-    echo ">> Creating external network 'proxy'..."
-    docker network create proxy
-  else
-    echo ">> External network 'proxy' already exists."
-  fi
-fi
-
-#######################################
 # Deploy stack
 #######################################
 DC="docker compose $PROFILE_TLS $PROFILE_DB -f docker-compose.yml $EXTRA_FILE"
