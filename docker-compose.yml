@@ -21,7 +21,7 @@ x-n8n-env: &n8n-env
   NODE_ENV: production
   N8N_RUNNERS_ENABLED: "true"
   N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
-  N8N_HOST: ${N8N_HOST:-localhost}
+  N8N_HOST: ${N8N_HOST}
   N8N_PORT: "5678"
   WEBHOOK_URL: ${WEBHOOK_URL:-}
   GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-UTC}
@@ -77,7 +77,6 @@ services:
       - "443:443"        # HTTPS
       # TCP pass-through (TLS encerrado no Traefik)
       - "6379:6379"      # Redis
-      - "5672:5672"      # RabbitMQ AMQP
       - "5432:5432"      # PostgreSQL
     environment:
       - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
@@ -200,7 +199,7 @@ services:
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.n8n.rule=Host(`${N8N_HOST:-localhost}`)
+      - traefik.http.routers.n8n.rule=Host(${N8N_HOST})
       - traefik.http.routers.n8n.entrypoints=websecure
       - "traefik.tcp.routers.n8n.tls.certresolver=cf"
 
