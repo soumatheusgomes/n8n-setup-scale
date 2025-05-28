@@ -1,36 +1,28 @@
+##########################
+#      NETWORKS          #
+##########################
+networks:
+  traefik:        # Exposição externa (TLS)
+    driver: bridge
+  backend:        # Tráfego interno isolado
+    driver: bridge
+
 ########################
 # Volumes & Networks   #
 ########################
 volumes:
-  n8n_data: # n8n workflow and credential storage
-  redis_data: # Redis persistence (optional)
-  traefik_letsencrypt: # ACME certificates (Traefik TLS mode)
+  n8n_data:
+  redis_data:
+  traefik_letsencrypt:
   postgres_data:
-    # Local Postgres data (dblocal profile)
-
-networks:
-  proxy: { external: true } # Traefik attaches here (profile tls)
-  backend: { driver: bridge } # private network for core services
-
-################
-# Global helpers
-################
-x-logging:
-  # reusable logging definition
-  &logging
-  logging:
-    driver: json-file
-    options: { max-size: "10m", max-file: "3" }
 
 # Default n8n environment block (overridden per service)
 x-n8n-env: &n8n-env
   NODE_ENV: production
   N8N_RUNNERS_ENABLED: "true"
-  # protocol/host/port are loaded from .env or fallback
   N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
   N8N_HOST: ${N8N_HOST:-localhost}
   N8N_PORT: "5678"
-  # If WEBHOOK_URL is unset, n8n will craft it automatically
   WEBHOOK_URL: ${WEBHOOK_URL:-}
   GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-UTC}
 
@@ -73,68 +65,110 @@ services:
   # Traefik – only started when profile `tls` is enabled          #
   #################################################################
   traefik:
-    profiles: [ "tls" ]
-    image: traefik:latest
-    <<: *logging
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      - --certificatesresolvers.le.acme.tlschallenge=true
-      - --certificatesresolvers.le.acme.email=${EMAIL:-admin@example.com}
-      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-    ports: [ "80:80", "443:443" ]
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik_letsencrypt:/letsencrypt
-    networks: [ proxy ]
+    image: traefik:${TRAEFIK_VERSION:-v3}                 # v3.x
+    container_name: traefik
     restart: unless-stopped
+    networks:
+      - traefik
+      - backend
+    ports:
+      # Entrada pública
+      - "80:80"          # HTTP  → redireciona para HTTPS
+      - "443:443"        # HTTPS
+      # TCP pass-through (TLS encerrado no Traefik)
+      - "6379:6379"      # Redis
+      - "5672:5672"      # RabbitMQ AMQP
+      - "5432:5432"      # PostgreSQL
+    environment:
+      - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
+    command:
+      # Enable Dashboard
+      - "--api=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      # EntryPoints HTTP/HTTPS
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      # TCP entry-points
+      - "--entrypoints.redis.address=:6379"
+      - "--entrypoints.rabbitmq.address=:5672"
+      - "--entrypoints.postgres.address=:5432"
+      - "--ping=true"
+      # ACME (Let's Encrypt) – DNS-01 via Cloudflare
+      - "--certificatesresolvers.cf.acme.email=${LETSENCRYPT_EMAIL}"
+      - "--certificatesresolvers.cf.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.cf.acme.dnschallenge.provider=cloudflare"
+      - "--log.level=INFO"
+    volumes:
+      - traefik_letsencrypt:/letsencrypt
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      # (Opcional) Habilite e proteja o dashboard via BasicAuth
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DASHBOARD_DOMAIN}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=cf"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
+      - "traefik.http.routers.traefik.middlewares=traefik-auth"
+
 
   #################################################################
   # PostgreSQL – local database (profile `dblocal`)               #
   #################################################################
   postgres:
     profiles: [ "dblocal" ]
-    image: postgres:17-alpine
-    <<: *logging
+    image: postgres:${POSTGRES_VERSION:-17}
+    container_name: postgres
     restart: unless-stopped
+    networks:
+      - backend
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-n8n}
-      POSTGRES_USER: ${POSTGRES_USER:-n8n}
+      POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-n8n}" ]
-    networks: [ backend ]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
   #################################################################
   # Redis – BullMQ queue backend                                  #
   #################################################################
   redis:
-    image: redis:7-alpine
-    <<: *logging
-    command: [ "redis-server", "--requirepass", "${REDIS_PASSWORD}" ]
+    image: redis:${REDIS_VERSION:-7}
+    container_name: redis
+    restart: unless-stopped
+    networks:
+      - backend
+    command: >
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
     volumes:
       - redis_data:/data
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
     healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [ backend ]
-    restart: unless-stopped
 
   #################################################################
   # Browserless – headless Chrome                                 #
   #################################################################
   browserless:
     profiles: [ "browserless" ]
-    image: browserless/chrome:latest
-    <<: *logging
+    image: browserless/chrome:${BROWSERLESS_VERSION:-latest}
     environment:
       TOKEN: ${BROWSERLESS_TOKEN:-development}
       MAX_CONCURRENT_SESSIONS: "5"
@@ -146,39 +180,40 @@ services:
       PORT: "3000"
       WORKSPACE_DELETE_EXPIRED: "true"
       WORKSPACE_EXPIRE_DAYS: "1"
-    networks: [ backend ]
+    networks:
+      - backend
     restart: unless-stopped
 
   #################################################################
   # n8n Web interface                                             #
   #################################################################
   n8n:
-    image: n8nio/n8n:latest
-    <<: *logging
+    image: n8nio/n8n:${N8N_VERSION:-latest}
     environment:
       <<: *n8n-env
     volumes: [ n8n_data:/home/node/.n8n ]
     depends_on:
       redis: { condition: service_healthy }
-    networks: [ proxy, backend ]
+    networks:
+      - backend
+      - traefik
     restart: unless-stopped
     labels:
       - traefik.enable=true
       - traefik.http.routers.n8n.rule=Host(`${N8N_HOST:-localhost}`)
       - traefik.http.routers.n8n.entrypoints=websecure
-      - traefik.http.routers.n8n.tls.certresolver=le
+      - "traefik.tcp.routers.n8n.tls.certresolver=cf"
 
   #################################################################
   # n8n Worker                                                    #
   #################################################################
   n8n-worker:
-    image: n8nio/n8n:latest
-    <<: *logging
+    image: n8nio/n8n:${N8N_VERSION:-latest}
     environment:
       <<: *n8n-env
     command: worker
     depends_on:
       redis: { condition: service_healthy }
-    networks: [ backend ]
+    networks:
+      - backend
     restart: unless-stopped
-    # worker replicas are defined at runtime via update-stack.sh
