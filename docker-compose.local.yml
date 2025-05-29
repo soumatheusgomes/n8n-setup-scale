@@ -1,8 +1,4 @@
 services:
-  # Expose port 5678 of n8n directly on the host
   n8n:
-    ports: ["5678:5678"]
-  # If you prefer to see detailed logs on the desktop
-  n8n-worker:
-    environment:
-      LOG_LEVEL: debug
+    ports:
+    - "5678:5678"
