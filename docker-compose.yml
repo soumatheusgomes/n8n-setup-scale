@@ -21,7 +21,7 @@ volumes:
 ########################
 x-n8n-env: &n8n-env
   NODE_ENV: production
-  N8N_RUNNERS_ENABLED: "true"
+  N8N_RUNNERS_ENABLED: "false"
   N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
   N8N_HOST: ${N8N_HOST:-localhost}
   N8N_PORT: "5678"
