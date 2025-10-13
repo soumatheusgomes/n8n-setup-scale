@@ -33,8 +33,8 @@ Supports **cloud/local** setups, **remote/local database**, **multiple workers**
             (optional)
 ┌─────────┐  profile:tls   ┌────────────┐
 │ Browser │─80/443───►────▶│  Traefik   │─────┐
-│ less    │                 └────────────┘     │
-└─────────┘                                     ▼
+│ less    │                └────────────┘     │
+└─────────┘                                   ▼
                                           ┌────────────┐
                                           │    n8n     │  UI/Webhooks
                                           └────────────┘
