@@ -417,14 +417,20 @@ Use additional machines exclusively for workers+runners pointing to the **centra
 
 ## FAQ
 
-**What’s the difference between *workers* and *runners*?**
-Workers execute **n8n workflows** pulled from the **BullMQ** queue (Redis). Runners execute **isolated tasks** (e.g., Native Python Runner) via the worker’s **Task Broker** (`:5679`).
+<details>
+<summary>Can I run without a domain?</summary>
+Yes — use any `local-*` mode; you’ll access via plain HTTP.
+</details>
 
-**Do I need a domain?**
-No. Use `localhost-*` modes for plain HTTP access during local testing.
+<details>
+<summary>Do I need WEBHOOK_URL?</summary>
+Only if your external port differs from 80/443/5678.
+</details>
 
-**When should I use local Postgres (profile `dblocal`)?**
-For simple/local environments. For multi-host or production, prefer an external/managed Postgres.
+<details>
+<summary>How do I add custom nodes?</summary>
+Edit the Dockerfile and `npm install your-node-package`.
+</details>
 
 ---
 
