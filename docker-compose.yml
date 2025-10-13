@@ -22,6 +22,8 @@ volumes:
 x-n8n-env: &n8n-env
   NODE_ENV: production
 
+  N8N_PROXY_HOPS: "1"
+
   # n8n + Runners (external) + Queue/Workers
   N8N_RUNNERS_ENABLED: "true"
   N8N_RUNNERS_MODE: external
