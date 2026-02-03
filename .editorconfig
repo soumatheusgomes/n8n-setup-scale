@@ -3,6 +3,7 @@
 # top-most EditorConfig file
 root = true
 
+# Default settings for all files
 [*]
 indent_style = space
 indent_size = 2
@@ -10,3 +11,21 @@ end_of_line = lf
 charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
+
+# Shell scripts
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# YAML files
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefiles
+[Makefile]
+indent_style = tab

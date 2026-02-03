@@ -135,6 +135,103 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-# Others
-secrets/
+################################################################################
+# Project-Specific Ignores
+################################################################################
+
+# Environment files (contains secrets)
+.env
+.env.*
+!.env.example
+
+# Docker generated files
 docker-compose.worker.yml
+docker-compose.override.yml
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*~
+
+# n8n data directory (if mounted locally)
+n8n_data/
+
+# Database dumps
+*.sql
+*.dump
+
+# Secret directories
+secrets/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# macOS Thumbnails
+._*
+
+# macOS Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# macOS Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Editor directories and files
+.idea
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Docker volumes (if using local mounts)
+postgres_data/
+redis_data/
+traefik_letsencrypt/
