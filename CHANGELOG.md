@@ -116,13 +116,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Colored output for better UX
 - English comments throughout
 
-#### deploy-workers-only.sh
-- Added full Task Runners support
-- Better validation of required variables
-- Auto-generation of docker-compose.worker.yml
-- Support for runners-per-worker configuration
-- English comments throughout
-
 #### docker-compose.yml
 - Reorganized structure with clear sections
 - Removed duplicate networks/volumes declarations
@@ -162,7 +155,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed install.sh not being executable by default
 - Corrected profile assignment for Traefik
-- Fixed worker-only deployment missing runners
 - Resolved duplicate sections in docker-compose.yml
 
 ### ⚠️ Breaking Changes

@@ -1,6 +1,6 @@
-# n8n Production Setup with Distributed Workers
+# n8n Production Setup
 
-**Production-ready n8n deployment with horizontal scaling, task runners, and automatic TLS.**
+**Production-ready n8n deployment with workers, task runners, and automatic TLS.**
 
 [![Docker](https://img.shields.io/badge/Docker-20.10+-blue.svg)](https://www.docker.com/)
 [![n8n](https://img.shields.io/badge/n8n-latest-orange.svg)](https://n8n.io/)
@@ -12,19 +12,17 @@
 
 A complete Docker Compose setup for self-hosting **n8n** with:
 
-- **Horizontal Scaling**: Add unlimited workers across multiple servers
+- **Scalable Workers**: Scale workflow execution with multiple workers
 - **Task Runners**: Isolated Python execution and heavy workload processing
 - **Automatic TLS**: Let's Encrypt certificates via Cloudflare DNS
 - **Queue-based**: BullMQ/Redis for distributed job processing
 - **Production-ready**: Health checks, restarts, and security best practices
 
-Perfect for high-traffic workflows, long-running automations, and distributed environments.
+Perfect for high-traffic workflows, long-running automations, and production environments.
 
 ---
 
 ## 📊 Architecture
-
-### Single Server Setup
 
 ```
 Internet
@@ -44,22 +42,7 @@ Internet
                           Runners (N × workers)
 ```
 
-### Multi-Server Setup
-
-```
-             Server A (Main)
-    ┌─────────────────────────────┐
-    │ n8n + Traefik + Redis + DB  │
-    └──────────┬──────────────────┘
-               │
-        ┌──────┴──────┐
-        │             │
-Server B (Workers)  Server C (Workers)
- ├─ Worker × 6       ├─ Worker × 8
- └─ Runner × 6       └─ Runner × 8
-```
-
-> All workers share the same Redis queue, PostgreSQL database, and encryption key.
+> Workers pull jobs from Redis queue and execute them. Runners provide isolated environments for Python and heavy tasks.
 
 ---
 
@@ -126,36 +109,19 @@ Access n8n at `https://your-domain.com` 🚀
 
 ## 📈 Scaling
 
-### Scale on Same Server
+### Scale Workers
 
 ```bash
 # Scale to 10 workers with 20 runners (2 per worker)
 docker compose up -d --scale n8n-worker=10 --scale n8n-worker-runners=20
 ```
 
-### Add Worker-Only Servers
+### Scaling Tips
 
-**On additional servers:**
-
-1. **Copy secrets from main server** (must match exactly):
-   ```bash
-   N8N_ENCRYPTION_KEY=<same-as-main>
-   N8N_RUNNERS_AUTH_TOKEN=<same-as-main>
-   REDIS_PASSWORD=<same-as-main>
-   ```
-
-2. **Point to central services**:
-   ```bash
-   QUEUE_BULL_REDIS_HOST=10.0.0.10       # Main server IP
-   POSTGRES_HOST=10.0.0.10               # Main server IP
-   ```
-
-3. **Deploy workers**:
-   ```bash
-   ./deploy-workers-only.sh 8  # 8 workers on this server
-   ```
-
-4. **Ensure network connectivity** (VPN/VPC) between servers.
+- **Workers**: Handle workflow execution. Scale based on concurrent workflow needs.
+- **Runners**: Handle Python code and heavy operations. Use `RUNNERS_PER_WORKER` in `.env` to set the ratio.
+- **Redis**: Single instance handles queue coordination.
+- **PostgreSQL**: Consider managed database (RDS, Cloud SQL) for high availability.
 
 ---
 
@@ -255,9 +221,6 @@ docker compose logs -f
 
 # Specific service
 docker compose logs -f n8n-worker
-
-# Workers on remote server
-docker compose -f docker-compose.worker.yml logs -f
 ```
 
 ---
@@ -266,12 +229,12 @@ docker compose -f docker-compose.worker.yml logs -f
 
 | Issue | Solution |
 |-------|----------|
-| **Workers idle on extra servers** | Check Redis/PostgreSQL connectivity. Verify firewall/VPN rules. Ensure secrets match main server. |
-| **Runners fail with 401/403** | Verify `N8N_RUNNERS_AUTH_TOKEN` matches across all services. |
+| **Runners fail with 401/403** | Verify `N8N_RUNNERS_AUTH_TOKEN` is set correctly. |
 | **TLS certificate fails** | Open port 80. Check DNS points to server. Verify Cloudflare token permissions. |
 | **n8n shows 502 error** | Wait for n8n to finish starting: `docker compose logs -f n8n` |
 | **Manual executions hang** | Check `OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true` and workers are running. |
 | **Version incompatibility** | Ensure `N8N_VERSION` and `N8N_RUNNER_VERSION` match release line. |
+| **Workers not processing** | Check Redis connectivity: `docker compose logs redis` |
 
 ---
 
@@ -279,15 +242,13 @@ docker compose -f docker-compose.worker.yml logs -f
 
 ```
 n8n-setup-scale/
-├── docker-compose.yml           # Main compose file
-├── docker-compose.local.yml     # Local development override
-├── install.sh                   # Main deployment script
-├── deploy-workers-only.sh       # Worker-only deployment
-├── Dockerfile                   # Custom n8n image (optional)
-├── .env.example                 # Environment template
-├── .editorconfig                # Code formatting
-├── .gitignore                   # Git ignore rules
-└── README.md                    # This file
+├── docker-compose.yml    # Main compose file
+├── install.sh            # Deployment script
+├── Dockerfile            # Custom n8n image (optional)
+├── .env.example          # Environment template
+├── .editorconfig         # Code formatting
+├── .gitignore            # Git ignore rules
+└── README.md             # This file
 ```
 
 ---

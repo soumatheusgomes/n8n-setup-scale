@@ -1,10 +1,10 @@
-# n8n Distributed Setup - Workers and Task Runners
+# n8n Production Setup with Workers and Task Runners
 #
 # Stack: Traefik (TLS) + n8n + Workers + Runners + Redis + PostgreSQL
 #
 # Profiles:
-#   tls        - Enable Traefik reverse proxy with Let's Encrypt
-#   dblocal    - Enable local PostgreSQL container
+#   tls         - Enable Traefik reverse proxy with Let's Encrypt
+#   dblocal     - Enable local PostgreSQL container
 #   browserless - Enable headless Chrome for browser automation
 
 # Shared n8n environment (used by main instance and workers)
@@ -247,6 +247,8 @@ services:
   n8n:
     image: n8nio/n8n:${N8N_VERSION:-latest}
     restart: unless-stopped
+    ports:
+      - "5678:5678"
     environment:
       <<: *n8n-env
     volumes:

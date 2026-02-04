@@ -40,7 +40,6 @@ cp .env .env.backup-$(date +%Y%m%d)
 
 # Backup current docker-compose files
 cp docker-compose.yml docker-compose.yml.backup
-cp docker-compose.local.yml docker-compose.local.yml.backup 2>/dev/null || true
 ```
 
 ## 🔄 Step 2: Pull Latest Code
@@ -200,16 +199,6 @@ docker compose logs n8n | grep -i migration
 
 ## 🔧 Step 6: Post-Upgrade Tasks
 
-### Update Worker-Only Servers (if applicable)
-
-If you have additional worker servers:
-
-1. Copy updated `.env` to worker servers (ensure secrets match)
-2. Run on each worker server:
-   ```bash
-   ./deploy-workers-only.sh 8  # Adjust worker count as needed
-   ```
-
 ### Review Resource Usage
 
 ```bash
@@ -346,7 +335,6 @@ cp .env.backup-YYYYMMDD .env
 
 # Restore compose files
 cp docker-compose.yml.backup docker-compose.yml
-cp docker-compose.local.yml.backup docker-compose.local.yml 2>/dev/null || true
 ```
 
 ### 3. Restore Database

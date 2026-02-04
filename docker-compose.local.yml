@@ -1,4 +1,0 @@
-services:
-  n8n:
-    ports:
-    - "5678:5678"

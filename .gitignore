@@ -145,7 +145,6 @@ dist
 !.env.example
 
 # Docker generated files
-docker-compose.worker.yml
 docker-compose.override.yml
 
 # Backup files

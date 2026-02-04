@@ -110,13 +110,12 @@ get_compose_config() {
   local mode="$1"
   PROFILE_TLS=""
   PROFILE_DB=""
-  EXTRA_FILE=""
 
   case "$mode" in
-    cloud-remote)    PROFILE_TLS="--profile tls" ;;
-    cloud-docker)    PROFILE_TLS="--profile tls"; PROFILE_DB="--profile dblocal" ;;
-    localhost-remote) EXTRA_FILE="-f docker-compose.local.yml" ;;
-    localhost-docker) PROFILE_DB="--profile dblocal"; EXTRA_FILE="-f docker-compose.local.yml" ;;
+    cloud-remote)     PROFILE_TLS="--profile tls" ;;
+    cloud-docker)     PROFILE_TLS="--profile tls"; PROFILE_DB="--profile dblocal" ;;
+    localhost-remote) ;;
+    localhost-docker) PROFILE_DB="--profile dblocal" ;;
   esac
 }
 
@@ -146,7 +145,7 @@ prompt_browserless() {
 
 # Deployment
 build_compose_command() {
-  echo "docker compose $PROFILE_TLS $PROFILE_DB -f docker-compose.yml $EXTRA_FILE"
+  echo "docker compose $PROFILE_TLS $PROFILE_DB -f docker-compose.yml"
 }
 
 deploy_stack() {
